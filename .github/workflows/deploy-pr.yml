@@ -15,6 +15,8 @@ env:
 # 실행할 작업 정의
 jobs:
   build-and-push-image:
+    outputs:
+      IMAGE_FULL_NAME: ${{ steps.meta.outputs.tags }}
     runs-on: ubuntu-latest
     steps:
       # 소스 코드 체크아웃
@@ -45,3 +47,26 @@ jobs:
           push: true # 빌드 후 이미지 푸시 여부
           tags: ${{ steps.meta.outputs.tags }} # Docker 메타데이터에서 생성된 태그
           labels: ${{ steps.meta.outputs.labels }} # Docker 메타데이터에서 생성된 라벨
+
+  update-kubernetes-manifest:
+    runs-on: ubuntu-latest
+    needs: [build-and-push-image]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Update fastapi-sample image
+        env:
+          IMAGE_FULL_NAME: ${{ needs.build-and-push-image.outputs.IMAGE_FULL_NAME }}
+        run: |
+          yq -i "(.spec.template.spec.containers[] | select(.name == \"fastapi-sample\")).image = \"$IMAGE_FULL_NAME\"" manifests/fastapi-sample/deployment.yaml
+
+      - name: Create PR
+        uses: peter-evans/create-pull-request@v6
+        with:
+          base: main
+          title: "Update fastapi-sample"
+          draft: true
+          body: |
+            # Changes
+            - Update `fastapi-sample` image to ${{ needs.build-and-push-image.outputs.IMAGE_FULL_NAME }}
