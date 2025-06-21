@@ -1,38 +1,47 @@
+# PR이 생성될 때 실행되는 워크플로우
 name: deploy-pr
 
+# 워크플로우 트리거 조건
 on:
   pull_request:
     paths:
-      - "app/**"
-      - ".github/workflows/deploy-pr.yml"
+      - "app/**" # app 디렉토리의 변경사항
+      - ".github/workflows/deploy-pr.yml" # 워크플로우 파일 자체의 변경사항
 
+# 환경 변수 설정
 env:
-  REGISTRY: ghcr.io
+  REGISTRY: ghcr.io # GitHub Container Registry 주소
 
+# 실행할 작업 정의
 jobs:
   build-and-push-image:
     runs-on: ubuntu-latest
     steps:
+      # 소스 코드 체크아웃
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # Docker 이미지 메타데이터 설정
       - name: Docker meta
         id: meta
         uses: docker/metadata-action@v5
         with:
+          # 이미지 이름 설정 (ghcr.io/사용자명/저장소명 형식)
           images: ${{ env.REGISTRY }}/${{ github.repository }}
 
+      # GitHub Container Registry 로그인
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          username: ${{ github.actor }} # 현재 워크플로우를 실행하는 사용자
+          password: ${{ secrets.GITHUB_TOKEN }} # GitHub에서 자동으로 제공하는 토큰
 
+      # Docker 이미지 빌드 및 푸시
       - name: Build and push image
         uses: docker/build-push-action@v5
         with:
-          context: app
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          context: app # Dockerfile이 있는 디렉토리
+          push: true # 빌드 후 이미지 푸시 여부
+          tags: ${{ steps.meta.outputs.tags }} # Docker 메타데이터에서 생성된 태그
+          labels: ${{ steps.meta.outputs.labels }} # Docker 메타데이터에서 생성된 라벨
